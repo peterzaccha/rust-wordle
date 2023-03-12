@@ -1,5 +1,4 @@
 use rand::prelude::*;
-use std::fs;
 
 use colored::*;
 
@@ -17,19 +16,18 @@ pub struct GuessChar {
 
 #[derive(Clone, Copy, Debug)]
 pub struct GuessWord {
-    word: [GuessChar; 5],
+    pub word: [GuessChar; 5],
 }
 
 impl GuessWord {
     pub fn render(&self) {
         for guess in self.word {
             let char = guess.char.to_string();
-            // word = word + char;
             let colred = {
                 match guess.status {
-                    GuessCharStatus::Right => char.green(),
-                    GuessCharStatus::WrongPlace => char.yellow(),
-                    GuessCharStatus::Wrong => char.red(),
+                    GuessCharStatus::Right => char.on_green(),
+                    GuessCharStatus::WrongPlace => char.on_yellow(),
+                    GuessCharStatus::Wrong => char.on_red(),
                 }
             };
 
@@ -44,20 +42,22 @@ impl GuessWord {
 pub enum WordleGameStatus {
     OnGoing,
     Win,
-    Lose,
+    Lose(String),
 }
+
+static WORDS: &str = include_str!("../words.txt");
 #[derive(Debug)]
 pub struct WordleGame {
     pub state: [Option<GuessWord>; 6],
     pub index: usize,
     pub correct: String,
     pub status: WordleGameStatus,
+    pub valid_words: Vec<&'static str>,
 }
 
 impl WordleGame {
     pub fn new() -> Self {
-        let file = fs::read_to_string("words.txt").unwrap();
-        let lines: Vec<&str> = file.split('\n').collect();
+        let lines: Vec<&str> = WORDS.split('\n').collect();
         let size = lines.len();
         let mut rng = rand::thread_rng();
         let y: usize = (rng.gen::<f64>() * (size as f64)).round() as usize; // generates a float between 0 and 1
@@ -67,6 +67,7 @@ impl WordleGame {
             correct: lines[y].trim().to_string(),
             index: 0,
             status: WordleGameStatus::OnGoing,
+            valid_words: lines,
         }
     }
 
@@ -79,9 +80,12 @@ impl WordleGame {
         }
     }
 
-    pub fn guess(&mut self, guess: &str) -> Result<(), String> {
-        if guess.len() > 5 {
+    pub fn guess(&mut self, guess: &str) -> Result<GuessWord, String> {
+        if guess.len() != 5 {
             return Err("Guess should be 5 char".to_string());
+        }
+        if !self.valid_words.contains(&guess) {
+            return Err("Word is not allowed".to_string());
         }
 
         let mut word: [Option<GuessChar>; 5] = [None; 5];
@@ -125,8 +129,8 @@ impl WordleGame {
         if right_places == 5 {
             self.status = WordleGameStatus::Win;
         } else if self.index > 5 {
-            self.status = WordleGameStatus::Lose;
+            self.status = WordleGameStatus::Lose(self.correct.clone());
         }
-        Ok(())
+        Ok(self.state[self.index - 1].unwrap())
     }
 }
